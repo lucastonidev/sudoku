@@ -12,7 +12,7 @@ export class SudokuGame {
     this.state = {
       difficulty: "easy",
       puzzle: [],
-      solution: [],
+      pause: null,
       selected: null,
       hintsLeft: 3,
       mistakes: 0,
@@ -57,8 +57,8 @@ export class SudokuGame {
       .getElementById("hintBtn")
       .addEventListener("click", () => this.useHint());
     document
-      .getElementById("solveBtn")
-      .addEventListener("click", () => this.solveBoard());
+      .getElementById("pauseBtn")
+      .addEventListener("click", () => this.pauseTimer());
   }
 
   // ── Estado e persistência ──────────────────────────────────────────────────
@@ -80,8 +80,10 @@ export class SudokuGame {
 
   newGame() {
     clearInterval(this.state.timerId);
-    console.log(`Gerando novo puzzle (dificuldade: ${this.state.difficulty})...`);
-    
+    console.log(
+      `Gerando novo puzzle (dificuldade: ${this.state.difficulty})...`,
+    );
+
     const { puzzle, solution } = this.generator.generate(this.state.difficulty);
     Object.assign(this.state, {
       puzzle,
@@ -216,7 +218,7 @@ export class SudokuGame {
       if (countMistake) {
         if (this.state.difficulty === "hard") {
           this._trackMistake();
-        }else{
+        } else {
           this.state.mistakes += 1;
           this.el.mistakes.textContent = this.state.mistakes;
           this._setStatus(
@@ -304,20 +306,18 @@ export class SudokuGame {
     }
   }
 
-  solveBoard() {
-    clearInterval(this.state.timerId);
-    this.state.puzzle = cloneBoard(this.state.solution);
-    this.el.board.querySelectorAll(".cell").forEach((cell) => {
-      const row = Number(cell.dataset.row);
-      const col = Number(cell.dataset.col);
-      cell.value = String(this.state.solution[row][col]);
-      cell.classList.remove("invalid");
-      if (!cell.disabled) cell.classList.add("user-filled");
-    });
-    this.state.solved = true;
-    GameStorage.clear();
-    this._setStatus("Puzzle resolvido automaticamente.", "success");
-    this.renderer.paintState(this.state.puzzle, this.state.selected);
+  pauseTimer() {
+    if (this.state.pause) {
+      const pausedDuration = Date.now() - this.state.pause;
+      this.state.startTime += pausedDuration;
+      this._startTimer(this.state.startTime);
+      this._setStatus("Jogo retomado.");
+      this.state.pause = null;
+    } else {
+      clearInterval(this.state.timerId);
+      this.state.pause = Date.now();
+      this._setStatus("Jogo pausado. Clique novamente para retomar.");
+    }
   }
 
   _checkWin() {
@@ -337,9 +337,9 @@ export class SudokuGame {
 
   // ── Timer ──────────────────────────────────────────────────────────────────
 
-  _startTimer() {
+  _startTimer(timer = Date.now()) {
     clearInterval(this.state.timerId);
-    this.state.startTime = Date.now();
+    this.state.startTime = timer;
     this._tickTimer();
     this.state.timerId = setInterval(() => {
       this._tickTimer();
@@ -388,14 +388,13 @@ export class SudokuGame {
       );
       this.newGame();
     });
-    
+
     // Define o botão ativo com base na dificuldade atual
-    
+
     this.el.difficulty.querySelectorAll("button").forEach((btn) => {
       if (btn.dataset.difficulty === this.state.difficulty) {
         btn.classList.add("active");
       }
-      
     });
   }
 
